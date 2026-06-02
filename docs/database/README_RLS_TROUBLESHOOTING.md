@@ -183,7 +183,7 @@ If you're still experiencing problems:
 ## Support
 
 For additional help:
-1. Check the main documentation: `README_DATABASE_SETUP.md`
-2. Review the drag and drop feature docs: `docs/DRAG_AND_DROP_FEATURE.md`
+1. Check the main documentation: [README_DATABASE_SETUP.md](./README_DATABASE_SETUP.md)
+2. Review the drag and drop feature docs: [DRAG_AND_DROP_FEATURE.md](../features/DRAG_AND_DROP_FEATURE.md)
 3. Check browser console for specific error messages
 

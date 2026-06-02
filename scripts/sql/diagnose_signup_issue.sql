@@ -134,7 +134,7 @@ BEGIN
     END IF;
     RAISE NOTICE '';
     RAISE NOTICE 'SOLUTION:';
-    RAISE NOTICE '  1. Run fix_signup_trigger.sql in Supabase SQL Editor';
+    RAISE NOTICE '  1. Run scripts/sql/fix_signup_trigger.sql in Supabase SQL Editor';
     RAISE NOTICE '  2. Or apply migration 20250205000002_fix_ambiguous_column.sql';
     RAISE NOTICE '';
     RAISE NOTICE 'The fix renames the variable to v_user_email to avoid conflict.';

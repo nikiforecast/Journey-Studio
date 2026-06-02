@@ -1,7 +1,7 @@
 -- =============================================================================
 -- Journey Studio consolidated database DDL
 -- Generated from supabase/migrations/*.sql in lexicographic (timestamp) order.
--- Import notes: docs/DATABASE_SCHEMA_IMPORT.md
+-- Import notes: docs/database/DATABASE_SCHEMA_IMPORT.md
 -- =============================================================================
 
 -- -------------------------------------------------------------------------

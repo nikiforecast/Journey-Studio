@@ -43,8 +43,8 @@ if [ $? -eq 0 ]; then
   echo "   4. Test image import on production"
   echo ""
   echo "📖 For detailed instructions, see:"
-  echo "   - DEPLOY_BACKGROUND_FUNCTIONS.md"
-  echo "   - BACKGROUND_FUNCTIONS_SUMMARY.md"
+  echo "   - docs/deployment/DEPLOY_BACKGROUND_FUNCTIONS.md"
+  echo "   - docs/deployment/BACKGROUND_FUNCTIONS_SUMMARY.md"
   echo ""
   echo "🎉 Deploy initiated successfully!"
 else
