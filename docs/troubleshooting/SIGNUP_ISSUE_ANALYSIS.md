@@ -37,7 +37,7 @@ Looking at your migrations:
 
 Run the diagnostic script:
 ```sql
--- Run diagnose_signup_issue.sql in Supabase SQL Editor
+-- Run scripts/sql/diagnose_signup_issue.sql in Supabase SQL Editor
 ```
 
 This will tell you:
@@ -51,7 +51,7 @@ This will tell you:
 The fix is simple: rename the variable from `user_email` to `v_user_email` throughout the function. This makes it clear when we're referring to the variable vs. the column.
 
 **Apply the fix:**
-1. Run `fix_signup_trigger.sql` in Supabase SQL Editor (fastest)
+1. Run `scripts/sql/fix_signup_trigger.sql` in Supabase SQL Editor (fastest)
 2. Or run `npx supabase db push` to apply migration `20250205000002`
 
 ## Prevention

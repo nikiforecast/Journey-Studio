@@ -265,19 +265,50 @@ export const convertTranscriptToJourney = async (
 
     // Trigger background function (fire and forget - Netlify returns 202 immediately)
     onProgress?.('Starting AI processing...')
-    
-    // Don't wait for this to complete - it will run in background for up to 15 minutes
-    fetch('/.netlify/functions/transcript-to-journey-background', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        transcript,
-        prompt: customPrompt,
-        userId: user.id
-      }),
-    }).catch(err => {
+
+    const triggerUrl = '/.netlify/functions/transcript-to-journey-background'
+    const importStartedAt = Date.now()
+
+    // #region agent log
+    fetch('http://127.0.0.1:7625/ingest/1098fe65-bd20-429c-885f-7ead38295b08',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353e91'},body:JSON.stringify({sessionId:'353e91',runId:'pre-fix',hypothesisId:'H1',location:'aiService.ts:trigger-start',message:'Transcript import trigger starting',data:{host:typeof window!=='undefined'?window.location.host:'unknown',pathname:typeof window!=='undefined'?window.location.pathname:'unknown',triggerUrl,userId:user.id,transcriptLength:transcript.length},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
+    let triggerStatus: number | null = null
+    let triggerOk = false
+    let triggerContentType = ''
+    let triggerBodyPreview = ''
+    let triggerJobId: string | null = null
+    let triggerFetchError: string | null = null
+
+    try {
+      const triggerResponse = await fetch(triggerUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcript,
+          prompt: customPrompt,
+          userId: user.id
+        }),
+      })
+      triggerStatus = triggerResponse.status
+      triggerOk = triggerResponse.ok
+      triggerContentType = triggerResponse.headers.get('content-type') || ''
+      const triggerText = await triggerResponse.text()
+      triggerBodyPreview = triggerText.slice(0, 120)
+      try {
+        const parsed = JSON.parse(triggerText)
+        triggerJobId = parsed?.jobId ?? null
+      } catch {
+        // non-JSON response (e.g. SPA HTML fallback)
+      }
+    } catch (err) {
+      triggerFetchError = err instanceof Error ? err.message : 'Unknown fetch error'
       console.error('Failed to trigger background function:', err)
-    })
+    }
+
+    // #region agent log
+    fetch('http://127.0.0.1:7625/ingest/1098fe65-bd20-429c-885f-7ead38295b08',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353e91'},body:JSON.stringify({sessionId:'353e91',runId:'pre-fix',hypothesisId:'H1,H2',location:'aiService.ts:trigger-result',message:'Transcript import trigger response',data:{triggerStatus,triggerOk,triggerContentType,triggerBodyPreview,triggerJobId,triggerFetchError},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     // Poll database directly for job completion
     const startTime = Date.now()
@@ -291,6 +322,9 @@ export const convertTranscriptToJourney = async (
       const elapsed = Date.now() - startTime
       
       if (elapsed > maxWaitTime) {
+        // #region agent log
+        fetch('http://127.0.0.1:7625/ingest/1098fe65-bd20-429c-885f-7ead38295b08',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353e91'},body:JSON.stringify({sessionId:'353e91',runId:'pre-fix',hypothesisId:'H1,H2,H3,H4,H5',location:'aiService.ts:timeout',message:'Transcript import timed out',data:{elapsedSeconds:Math.floor(elapsed/1000),triggerStatus,triggerOk,triggerContentType,triggerJobId,triggerFetchError},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         throw new Error('Processing timeout after 15 minutes')
       }
 
@@ -308,6 +342,9 @@ export const convertTranscriptToJourney = async (
       
       if (queryError) {
         console.error('Error querying job:', queryError)
+        // #region agent log
+        fetch('http://127.0.0.1:7625/ingest/1098fe65-bd20-429c-885f-7ead38295b08',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353e91'},body:JSON.stringify({sessionId:'353e91',runId:'pre-fix',hypothesisId:'H3',location:'aiService.ts:poll-query-error',message:'Supabase poll query error',data:{elapsedSeconds,code:queryError.code,message:queryError.message,details:queryError.details},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         await new Promise(resolve => setTimeout(resolve, pollInterval))
         continue
       }
@@ -315,8 +352,20 @@ export const convertTranscriptToJourney = async (
       const job = jobs?.[0]
       if (!job) {
         // Job not created yet, keep waiting
+        if (elapsedSeconds === 5 || elapsedSeconds === 15 || elapsedSeconds % 30 === 0) {
+          // #region agent log
+          fetch('http://127.0.0.1:7625/ingest/1098fe65-bd20-429c-885f-7ead38295b08',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353e91'},body:JSON.stringify({sessionId:'353e91',runId:'pre-fix',hypothesisId:'H2,H3',location:'aiService.ts:poll-no-job',message:'No transcript job found yet',data:{elapsedSeconds,triggerStatus,triggerOk,triggerJobId,importStartedAt},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
+        }
         await new Promise(resolve => setTimeout(resolve, pollInterval))
         continue
+      }
+
+      if (elapsedSeconds === 5 || elapsedSeconds === 15 || elapsedSeconds % 30 === 0 || job.status === 'completed' || job.status === 'failed') {
+        const jobCreatedAt = job.created_at ? new Date(job.created_at).getTime() : null
+        // #region agent log
+        fetch('http://127.0.0.1:7625/ingest/1098fe65-bd20-429c-885f-7ead38295b08',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353e91'},body:JSON.stringify({sessionId:'353e91',runId:'pre-fix',hypothesisId:'H4,H5',location:'aiService.ts:poll-job-state',message:'Transcript job poll state',data:{elapsedSeconds,jobId:job.id,jobStatus:job.status,jobCreatedAt,importStartedAt,isStaleJob:jobCreatedAt?jobCreatedAt<importStartedAt-5000:null,errorMessage:job.error_message??null,hasResultData:!!job.result_data},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
       }
       
       if (job.status === 'completed') {

@@ -2,12 +2,12 @@
 
 This project’s schema is defined by ordered SQL migrations under `supabase/migrations/`. For a **single file** you can run in another environment, use:
 
-- **`docs/kyp_database_schema.sql`** — all migrations concatenated in **lexicographic (timestamp) order** (~6k lines).
+- **`docs/database/kyp_database_schema.sql`** — all migrations concatenated in **lexicographic (timestamp) order** (~6k lines).
 
 Regenerate it anytime after adding migrations:
 
 ```bash
-( printf '%s\n' '-- Journey Studio consolidated (see docs/DATABASE_SCHEMA_IMPORT.md)'; \
+( printf '%s\n' '-- Journey Studio consolidated (see docs/database/DATABASE_SCHEMA_IMPORT.md)'; \
   for f in $(ls supabase/migrations/*.sql | LC_ALL=C sort); do \
     echo ""; echo "-- $(basename "$f")"; cat "$f"; \
   done ) > docs/kyp_database_schema.sql
@@ -61,7 +61,7 @@ You should see many migration lines applied without errors.
 
 ### If CLI isn’t practical
 
-Dashboard → **SQL Editor** → paste/run **`docs/kyp_database_schema.sql`** on an empty project only. Very large scripts can hit editor limits; **`db push`** is more reliable.
+Dashboard → **SQL Editor** → paste/run **`docs/database/kyp_database_schema.sql`** on an empty project only. Very large scripts can hit editor limits; **`db push`** is more reliable.
 
 ### If tables still look empty
 

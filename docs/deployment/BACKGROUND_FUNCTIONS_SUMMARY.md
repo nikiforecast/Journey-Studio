@@ -268,5 +268,5 @@ Deploy now and enjoy:
 - ✅ Support for complex diagrams
 - ✅ Happy users! 🎊
 
-**Next:** See `DEPLOY_BACKGROUND_FUNCTIONS.md` for detailed deployment instructions.
+**Next:** See [DEPLOY_BACKGROUND_FUNCTIONS.md](./DEPLOY_BACKGROUND_FUNCTIONS.md) for detailed deployment instructions.
 

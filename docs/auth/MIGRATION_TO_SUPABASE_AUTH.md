@@ -30,7 +30,7 @@ I've successfully migrated your authentication system from Auth0 to Supabase Aut
    - Removed Auth0-specific comments and logic
    - Now only handles Supabase users
 
-6. **Created Setup Guide** (`docs/SUPABASE_GOOGLE_OAUTH_SETUP.md`)
+6. **Created Setup Guide** (`docs/auth/SUPABASE_GOOGLE_OAUTH_SETUP.md`)
    - Complete instructions for configuring Google OAuth in Supabase
    - Troubleshooting tips
 
@@ -38,7 +38,7 @@ I've successfully migrated your authentication system from Auth0 to Supabase Aut
 
 ### 1. Configure Google OAuth in Supabase (Required)
 
-Follow the steps in `docs/SUPABASE_GOOGLE_OAUTH_SETUP.md`:
+Follow the steps in `docs/auth/SUPABASE_GOOGLE_OAUTH_SETUP.md`:
 
 1. Go to Supabase Dashboard → Authentication → Providers
 2. Enable Google provider
@@ -123,7 +123,7 @@ After testing locally:
 ## Support
 
 If you encounter any issues:
-1. Check `docs/SUPABASE_GOOGLE_OAUTH_SETUP.md` for troubleshooting
+1. Check `docs/auth/SUPABASE_GOOGLE_OAUTH_SETUP.md` for troubleshooting
 2. Verify Google OAuth is configured correctly in Supabase
 3. Check Supabase logs for trigger errors
 4. Ensure redirect URIs are correct
