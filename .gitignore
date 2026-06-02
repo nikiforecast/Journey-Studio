@@ -17,11 +17,17 @@ dist-ssr
 !.vscode/extensions.json
 .idea
 .DS_Store
+.cursor/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# Local tooling and build caches
+.bolt/
+.netlify/
+
 .env
 supabase/.temp/
 kyp-mcp-connector/.env

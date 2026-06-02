@@ -45,10 +45,10 @@ The AI Screenshot Import feature allows users to upload a screenshot of a Miro b
    - Error handling and validation
    - Import statistics
 
-3. **API Routes** (`api/ai/analyze-screenshot.ts`)
-   - Serverless function for AI analysis
+3. **Netlify Functions** (`netlify/functions/diagram-to-journey*.js`)
+   - Serverless handlers for AI analysis
    - OpenAI Vision API integration
-   - Fallback error handling
+   - Background jobs for long-running imports
 
 ## Usage
 
@@ -109,7 +109,7 @@ Analyze this Miro board and extract:
    OPENAI_API_KEY=your_api_key_here
    ```
 
-2. **API Route** (`api/ai/analyze-screenshot.ts`)
+2. **Netlify Function** (`netlify/functions/diagram-to-journey-background.js`)
    ```typescript
    const response = await openai.chat.completions.create({
      model: "gpt-4-vision-preview",
