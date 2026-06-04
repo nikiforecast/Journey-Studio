@@ -7,13 +7,15 @@ import { EmojiAutocomplete } from './EmojiAutocomplete'
 interface EditJourneyModalProps {
   isOpen: boolean
   onClose: () => void
-  onSave: () => void
+  onSave: () => void | Promise<void>
   journeyName: string
   journeyDescription: string
   onNameChange: (name: string) => void
   onDescriptionChange: (description: string) => void
   saveDisabled?: boolean
   isCreating?: boolean
+  title?: string
+  saveLabel?: string
 }
 
 export function EditJourneyModal({
@@ -25,7 +27,9 @@ export function EditJourneyModal({
   onNameChange,
   onDescriptionChange,
   saveDisabled = false,
-  isCreating = false
+  isCreating = false,
+  title,
+  saveLabel,
 }: EditJourneyModalProps) {
   useEffect(() => {
     if (!isOpen) return
@@ -52,7 +56,7 @@ export function EditJourneyModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isCreating ? "Create User Journey" : "Edit Journey Details"}
+      title={title ?? (isCreating ? 'Create User Journey' : 'Edit Journey Details')}
       size="md"
       closeOnOverlayClick={false}
       footerContent={
@@ -65,7 +69,7 @@ export function EditJourneyModal({
             onClick={onSave}
             disabled={saveDisabled || !journeyName.trim()}
           >
-            {isCreating ? "Create Journey" : "Save Details"}
+            {saveLabel ?? (isCreating ? 'Create Journey' : 'Save Details')}
           </Button>
         </div>
       }

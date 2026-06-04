@@ -411,12 +411,11 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
 
   const [thirdParties, setThirdParties] = useState<ThirdParty[]>(initialThirdParties || [])
   const [platforms, setPlatforms] = useState<Platform[]>(initialPlatforms || [])
-  const [journeyName, setJourneyName] = useState('User Journey 01')
+  const [journeyName, setJourneyName] = useState('Untitled')
   const [journeyDescription, setJourneyDescription] = useState('')
   const [journeyLayout, setJourneyLayout] = useState<'vertical' | 'horizontal'>('vertical')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showNameEditModal, setShowNameEditModal] = useState(false)
-  const [hasAutoOpenedModal, setHasAutoOpenedModal] = useState(false)
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [showConfigModal, setShowConfigModal] = useState(false)
   const [configuringNode, setConfiguringNode] = useState<Node | null>(null)
@@ -522,21 +521,6 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
   useEffect(() => {
     loadData()
   }, [])
-
-  // Auto-open Edit Journey Details modal for new journeys (only once)
-  useEffect(() => {
-    // Only open modal if:
-    // 1. Not loading (data has loaded)
-    // 2. No current journey ID (it's a new journey)
-    // 3. Modal is not already open
-    // 4. We haven't auto-opened it before (prevents reopening after user closes it)
-    if (!loading && !currentJourneyId && !showNameEditModal && !hasAutoOpenedModal) {
-      // Clear journey name for new journey creation
-      setJourneyName('')
-      setShowNameEditModal(true)
-      setHasAutoOpenedModal(true)
-    }
-  }, [loading, currentJourneyId, showNameEditModal, hasAutoOpenedModal])
 
   // Update all nodes when layout changes
   const prevLayoutRef = useRef(journeyLayout)
@@ -1782,14 +1766,15 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
     return sorted
   }, [])
 
+  const isNewUntitledJourney = !currentJourneyId && journeyName.trim() === 'Untitled'
+
   // Save journey
-  const saveJourney = useCallback(async () => {
+  const saveJourney = useCallback(async (options?: { skipNamePrompt?: boolean }) => {
     if (!journeyName.trim()) {
       return
     }
 
-    // If using default name, open modal to get custom name
-    if (journeyName === 'User Journey 01' && !currentJourneyId) {
+    if (!options?.skipNamePrompt && isNewUntitledJourney) {
       setShowNameEditModal(true)
       return
     }
@@ -1876,7 +1861,7 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
     } finally {
       setSaving(false)
     }
-  }, [journeyName, journeyDescription, nodes, edges, currentJourneyId, sortNodesForSaving, journeyLayout, selectedLawFirmIds])
+  }, [journeyName, journeyDescription, nodes, edges, currentJourneyId, sortNodesForSaving, journeyLayout, selectedLawFirmIds, isNewUntitledJourney])
 
   // Keyboard shortcut for save (Cmd/Ctrl+S) - defined after saveJourney
   useEffect(() => {
@@ -1892,13 +1877,17 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
       // Handle Command/Ctrl+S to save journey
       if (isModifierPressed && (event.key === 's' || event.key === 'S')) {
         event.preventDefault()
-        saveJourney()
+        if (isNewUntitledJourney) {
+          setShowNameEditModal(true)
+        } else {
+          saveJourney()
+        }
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [saveJourney])
+  }, [saveJourney, isNewUntitledJourney])
 
   // Export journey as JSON
   const exportJourney = useCallback(() => {
@@ -2239,6 +2228,9 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
       const finalJourneyName = wasEmpty 
         ? (analyzedJourney.name || journeyName)
         : journeyName
+      if (wasEmpty && finalJourneyName.trim()) {
+        setJourneyName(finalJourneyName)
+      }
       
       setNodes([...nodes, ...regionNodes, ...flowNodes])
       setEdges([...edges, ...flowEdges])
@@ -2249,11 +2241,9 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
       // Autosave the journey after import
       // Use setTimeout to ensure state updates are complete before saving
       setTimeout(async () => {
-        // If there's an existing journey ID, we can always save
-        // If it's a new journey, we need a name
         if (currentJourneyId || finalJourneyName.trim()) {
           try {
-            await saveJourney()
+            await saveJourney({ skipNamePrompt: true })
           } catch (error) {
             console.error('Error autosaving after image import:', error)
           }
@@ -2412,8 +2402,11 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
       // Combine with existing content (append instead of replace)
       const wasEmpty = nodes.length === 0
       const finalJourneyName = wasEmpty 
-        ? (journeyData.name || 'Imported from Transcript')
+        ? (journeyData.name || journeyName)
         : journeyName
+      if (wasEmpty && finalJourneyName.trim()) {
+        setJourneyName(finalJourneyName)
+      }
       
       setNodes([...nodes, ...importedNodes])
       setEdges([...edges, ...importedEdges])
@@ -2428,11 +2421,9 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
       // Autosave the journey after import
       // Use setTimeout to ensure state updates are complete before saving
       setTimeout(async () => {
-        // If there's an existing journey ID, we can always save
-        // If it's a new journey, we need a name
         if (currentJourneyId || finalJourneyName.trim()) {
           try {
-            await saveJourney()
+            await saveJourney({ skipNamePrompt: true })
           } catch (error) {
             console.error('Error autosaving after transcript import:', error)
           }
@@ -4955,11 +4946,10 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
 
           <Button
             onClick={() => {
-              // If name has been changed from default or description is filled, save directly
-              if (journeyName !== 'User Journey 01' || journeyDescription.trim()) {
-                saveJourney()
+              if (isNewUntitledJourney) {
+                setShowNameEditModal(true)
               } else {
-                setShowSaveModal(true)
+                saveJourney()
               }
             }}
             className="flex items-center gap-2 whitespace-nowrap"
@@ -5303,6 +5293,8 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
       <EditJourneyModal
         isOpen={showNameEditModal}
         isCreating={!currentJourneyId}
+        title={!currentJourneyId ? 'Name your journey' : undefined}
+        saveLabel={!currentJourneyId ? 'Save Journey' : undefined}
         onClose={() => {
           setShowNameEditModal(false)
           setSelectedLawFirmIds([])
@@ -5312,61 +5304,7 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
           if (!journeyName.trim()) {
             return
           }
-
-          try {
-            // Sort nodes to ensure parents come before children
-            const sortedNodes = sortNodesForSaving(nodes)
-            const flowData = { 
-              nodes: sortedNodes, 
-              edges,
-              userRoleEmojiOverrides,
-              handleArrowStates
-            }
-
-            if (currentJourneyId) {
-              // Update existing journey
-              await updateUserJourney(currentJourneyId, {
-                name: journeyName,
-                description: journeyDescription,
-                layout: journeyLayout,
-                flow_data: flowData,
-              })
-              
-              // Save law firm associations
-              await setUserJourneyLawFirms(currentJourneyId, selectedLawFirmIds)
-              
-              setHasUnsavedChanges(false)
-            } else {
-              // Create new journey
-              const created = await createUserJourney(
-                journeyName,
-                journeyDescription,
-                flowData,
-                null,
-                journeyLayout,
-                selectedFolderId || null
-              )
-              
-              if (created) {
-                // Save law firm associations
-                await setUserJourneyLawFirms(created.id, selectedLawFirmIds)
-                
-                // Assign to folder if folderId was provided
-                if (selectedFolderId) {
-                  await assignUserJourneysToFolder([created.id], selectedFolderId)
-                }
-                
-                setCurrentJourneyId(created.id)
-                setHasUnsavedChanges(false)
-              }
-            }
-          } catch (error) {
-            console.error('Error saving journey details:', error)
-            alert('Failed to save journey. Please try again.')
-            return
-          }
-          
-          setShowNameEditModal(false)
+          await saveJourney({ skipNamePrompt: true })
         }}
         journeyName={journeyName}
         journeyDescription={journeyDescription}
