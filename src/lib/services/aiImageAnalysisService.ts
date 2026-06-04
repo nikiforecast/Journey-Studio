@@ -146,7 +146,7 @@ export async function analyzeJourneyImageWithBackground(
 /**
  * Poll database directly for job completion
  */
-async function pollDatabaseForJobCompletion(
+export async function pollDatabaseForJobCompletion(
   userId: string,
   jobType: 'diagram' | 'transcript',
   jobId: string,
@@ -222,7 +222,8 @@ async function pollDatabaseForJobCompletion(
     
     // Still processing
     if (onProgress) {
-      onProgress(`Processing diagram... (${elapsedSeconds}s)`, elapsedSeconds)
+      const label = jobType === 'transcript' ? 'transcript' : 'diagram'
+      onProgress(`Processing ${label}... (${elapsedSeconds}s)`, elapsedSeconds)
     }
     
     // Wait before next poll

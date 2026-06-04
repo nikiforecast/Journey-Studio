@@ -27,7 +27,7 @@ import { HighlightRegionNode } from './DesignSystem/components/HighlightRegionNo
 import { CustomEdge } from './DesignSystem/components/CustomEdge'
 import { getNodesInRegion, getEdgesForNodes, shiftNodesToOrigin, type RegionBounds } from '../utils/exportUtils'
 import { LoadingState } from './DesignSystem/components/LoadingSpinner'
-import { Save, Plus, Download, Upload, ArrowLeft, Edit, FolderOpen, Check, Sparkles, Image as ImageIcon, Share2, Copy as CopyIcon, ChevronDown, Trash2, Maximize, Minimize } from 'lucide-react'
+import { Save, Plus, Download, Upload, ArrowLeft, Edit, FolderOpen, Check, Sparkles, Image as ImageIcon, Share2, Copy as CopyIcon, ChevronDown, Trash2, Maximize, Minimize, CheckCircle } from 'lucide-react'
 import { Modal, ConfirmModal } from './DesignSystem/components/Modal'
 import { OptionsMenu } from './DesignSystem/components/OptionsMenu'
 import { ImportJourneyImageModal } from './ImportJourneyImageModal'
@@ -467,6 +467,8 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
   const [copySuccess, setCopySuccess] = useState(false)
   const [showDeleteJourneyModal, setShowDeleteJourneyModal] = useState(false)
   const [deletingJourney, setDeletingJourney] = useState(false)
+  const [showAiBuildSuccessModal, setShowAiBuildSuccessModal] = useState(false)
+  const [aiBuildSuccessMessage, setAiBuildSuccessMessage] = useState('')
   const [userRoleEmojiOverrides, setUserRoleEmojiOverrides] = useState<Record<string, string>>({})
   // Store handle arrow states: { [nodeId]: [handleId1, handleId2, ...] }
   const [handleArrowStates, setHandleArrowStates] = useState<Record<string, string[]>>({})
@@ -2261,7 +2263,10 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
       // Show success message
       const regionText = regionNodes.length > 0 ? `, ${regionNodes.length} regions` : ''
       const actionText = nodes.length > 0 ? 'Added' : 'Successfully imported'
-      alert(`${actionText} journey with ${flowNodes.length} nodes${regionText}, and ${flowEdges.length} connections!`)
+      setAiBuildSuccessMessage(
+        `${actionText} journey with ${flowNodes.length} nodes${regionText}, and ${flowEdges.length} connections!`
+      )
+      setShowAiBuildSuccessModal(true)
     } catch (error) {
       console.error('Error processing imported journey:', error)
       alert('Error processing the imported journey. Please try again.')
@@ -2436,7 +2441,10 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
 
       // Show success message
       const actionText = nodes.length > 0 ? 'Added' : 'Successfully imported'
-      alert(`${actionText} journey from transcript with ${importedNodes.length} nodes in ${importTranscriptLayout} layout!`)
+      setAiBuildSuccessMessage(
+        `${actionText} journey from transcript with ${importedNodes.length} nodes in ${importTranscriptLayout} layout!`
+      )
+      setShowAiBuildSuccessModal(true)
     } catch (error) {
       console.error('Error importing from transcript:', error)
       setImportTranscriptError(
@@ -2668,7 +2676,8 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
       setEditAIProgress('')
 
       // Show success message
-      alert(`Successfully applied AI edits! Updated ${updatedNodes.length} nodes.`)
+      setAiBuildSuccessMessage(`Successfully applied AI edits! Updated ${updatedNodes.length} nodes.`)
+      setShowAiBuildSuccessModal(true)
     } catch (error) {
       console.error('Error editing with AI:', error)
       setEditAIError(
@@ -4918,6 +4927,16 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
                   <ImageIcon size={16} />
                   <span>Import from Image</span>
                 </button>
+                <button
+                  onClick={() => {
+                    setShowImportJsonModal(true)
+                    setShowImportDropdown(false)
+                  }}
+                  className="w-full px-4 py-2 text-left text-sm flex items-center gap-3 transition-colors text-gray-700 hover:bg-gray-100"
+                >
+                  <Upload size={16} />
+                  <span>Import from JSON</span>
+                </button>
               </div>
             )}
           </div>
@@ -4962,11 +4981,6 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
             {/* More Options Menu */}
             <OptionsMenu
               items={[
-                {
-                  label: 'Import JSON',
-                  icon: Upload,
-                  onClick: () => setShowImportJsonModal(true)
-                },
                 {
                   label: 'Export as JSON',
                   icon: Download,
@@ -5885,6 +5899,26 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
           </div>
         </Modal>
       )}
+
+      {/* AI build success */}
+      <Modal
+        isOpen={showAiBuildSuccessModal}
+        onClose={() => setShowAiBuildSuccessModal(false)}
+        title="Journey built successfully"
+        size="sm"
+        footerContent={
+          <div className="flex items-center justify-end">
+            <Button variant="primary" onClick={() => setShowAiBuildSuccessModal(false)}>
+              Got it
+            </Button>
+          </div>
+        }
+      >
+        <div className="p-6 flex items-start gap-3">
+          <CheckCircle className="h-6 w-6 text-green-600 flex-shrink-0 mt-0.5" aria-hidden />
+          <p className="text-gray-700">{aiBuildSuccessMessage}</p>
+        </div>
+      </Modal>
 
       {/* Delete Journey Confirmation Modal */}
       <ConfirmModal

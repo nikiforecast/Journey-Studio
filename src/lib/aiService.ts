@@ -1,4 +1,60 @@
 import { supabase } from './supabase'
+import { pollDatabaseForJobCompletion } from './services/aiImageAnalysisService'
+
+const TRANSCRIPT_START_PATH = '/.netlify/functions/transcript-to-journey-start'
+const JOB_CREATION_TIMEOUT_MS = 30_000
+
+function isSpaFallbackResponse(contentType: string, body: string): boolean {
+  const trimmed = body.trimStart()
+  return (
+    contentType.includes('text/html') ||
+    trimmed.startsWith('<!DOCTYPE') ||
+    trimmed.startsWith('<html')
+  )
+}
+
+function localDevHint(): string {
+  const host = typeof window !== 'undefined' ? window.location.hostname : ''
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return ' For local dev, run `npx netlify dev` (not `npm run dev` alone) so Netlify functions are available.'
+  }
+  return ' On Netlify, check Site settings → Environment variables and redeploy.'
+}
+
+async function resolveTranscriptJobId(
+  userId: string,
+  importStartedAt: number,
+  knownJobId: string | null
+): Promise<string> {
+  if (knownJobId) return knownJobId
+
+  const startedAfter = new Date(importStartedAt - 3000).toISOString()
+  const deadline = Date.now() + JOB_CREATION_TIMEOUT_MS
+
+  while (Date.now() < deadline) {
+    const { data: jobs, error } = await supabase!
+      .from('ai_processing_jobs')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('job_type', 'transcript')
+      .gte('created_at', startedAfter)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (error) {
+      console.error('Error resolving transcript job id:', error)
+    } else if (jobs?.[0]?.id) {
+      return jobs[0].id
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+  }
+
+  throw new Error(
+    'Transcript job was not found within 30 seconds. Check the terminal running `netlify dev` for errors, and confirm .env has OPENAI_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY (service role). Also verify ai_processing_jobs exists in the same Supabase project as VITE_SUPABASE_URL.' +
+      localDevHint()
+  )
+}
 
 export interface ExtractedExample {
   actor: string
@@ -252,136 +308,70 @@ export const convertTranscriptToJourney = async (
 ): Promise<any> => {
   try {
     console.log('Converting transcript with AI (background processing)...')
-    
-    // Get current user
+
     if (!supabase) {
-      throw new Error('Database not configured')
+      throw new Error('Database not configured — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env')
     }
-    
+
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
       throw new Error('User not authenticated')
     }
 
-    // Trigger background function (fire and forget - Netlify returns 202 immediately)
+    const importStartedAt = Date.now()
     onProgress?.('Starting AI processing...')
 
-    const triggerUrl = '/.netlify/functions/transcript-to-journey-background'
-    const importStartedAt = Date.now()
+    const startResponse = await fetch(TRANSCRIPT_START_PATH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        transcript,
+        prompt: customPrompt,
+        userId: user.id,
+      }),
+    })
 
-    // #region agent log
-    fetch('http://127.0.0.1:7625/ingest/1098fe65-bd20-429c-885f-7ead38295b08',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353e91'},body:JSON.stringify({sessionId:'353e91',runId:'pre-fix',hypothesisId:'H1',location:'aiService.ts:trigger-start',message:'Transcript import trigger starting',data:{host:typeof window!=='undefined'?window.location.host:'unknown',pathname:typeof window!=='undefined'?window.location.pathname:'unknown',triggerUrl,userId:user.id,transcriptLength:transcript.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
+    const startContentType = startResponse.headers.get('content-type') || ''
+    const startText = await startResponse.text()
 
-    let triggerStatus: number | null = null
-    let triggerOk = false
-    let triggerContentType = ''
-    let triggerBodyPreview = ''
-    let triggerJobId: string | null = null
-    let triggerFetchError: string | null = null
+    if (isSpaFallbackResponse(startContentType, startText)) {
+      throw new Error(
+        'Transcript import server is not reachable (received the app page instead of a Netlify function).' +
+          localDevHint()
+      )
+    }
 
+    let startPayload: { jobId?: string; error?: string; hint?: string } = {}
     try {
-      const triggerResponse = await fetch(triggerUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transcript,
-          prompt: customPrompt,
-          userId: user.id
-        }),
-      })
-      triggerStatus = triggerResponse.status
-      triggerOk = triggerResponse.ok
-      triggerContentType = triggerResponse.headers.get('content-type') || ''
-      const triggerText = await triggerResponse.text()
-      triggerBodyPreview = triggerText.slice(0, 120)
-      try {
-        const parsed = JSON.parse(triggerText)
-        triggerJobId = parsed?.jobId ?? null
-      } catch {
-        // non-JSON response (e.g. SPA HTML fallback)
-      }
-    } catch (err) {
-      triggerFetchError = err instanceof Error ? err.message : 'Unknown fetch error'
-      console.error('Failed to trigger background function:', err)
+      startPayload = JSON.parse(startText)
+    } catch {
+      throw new Error(
+        `Transcript start failed (${startResponse.status}): ${startText.slice(0, 300) || 'empty response'}` +
+          localDevHint()
+      )
     }
 
-    // #region agent log
-    fetch('http://127.0.0.1:7625/ingest/1098fe65-bd20-429c-885f-7ead38295b08',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353e91'},body:JSON.stringify({sessionId:'353e91',runId:'pre-fix',hypothesisId:'H1,H2',location:'aiService.ts:trigger-result',message:'Transcript import trigger response',data:{triggerStatus,triggerOk,triggerContentType,triggerBodyPreview,triggerJobId,triggerFetchError},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-
-    // Poll database directly for job completion
-    const startTime = Date.now()
-    const maxWaitTime = 15 * 60 * 1000 // 15 minutes
-    const pollInterval = 5000 // 5 seconds
-    
-    // Wait a moment for job to be created
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    
-    while (true) {
-      const elapsed = Date.now() - startTime
-      
-      if (elapsed > maxWaitTime) {
-        // #region agent log
-        fetch('http://127.0.0.1:7625/ingest/1098fe65-bd20-429c-885f-7ead38295b08',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353e91'},body:JSON.stringify({sessionId:'353e91',runId:'pre-fix',hypothesisId:'H1,H2,H3,H4,H5',location:'aiService.ts:timeout',message:'Transcript import timed out',data:{elapsedSeconds:Math.floor(elapsed/1000),triggerStatus,triggerOk,triggerContentType,triggerJobId,triggerFetchError},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
-        throw new Error('Processing timeout after 15 minutes')
-      }
-
-      const elapsedSeconds = Math.floor(elapsed / 1000)
-      onProgress?.(`Processing... ${elapsedSeconds}s elapsed`)
-      
-      // Query latest job for this user of type 'transcript'
-      const { data: jobs, error: queryError } = await supabase
-        .from('ai_processing_jobs')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('job_type', 'transcript')
-        .order('created_at', { ascending: false })
-        .limit(1)
-      
-      if (queryError) {
-        console.error('Error querying job:', queryError)
-        // #region agent log
-        fetch('http://127.0.0.1:7625/ingest/1098fe65-bd20-429c-885f-7ead38295b08',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353e91'},body:JSON.stringify({sessionId:'353e91',runId:'pre-fix',hypothesisId:'H3',location:'aiService.ts:poll-query-error',message:'Supabase poll query error',data:{elapsedSeconds,code:queryError.code,message:queryError.message,details:queryError.details},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
-        await new Promise(resolve => setTimeout(resolve, pollInterval))
-        continue
-      }
-      
-      const job = jobs?.[0]
-      if (!job) {
-        // Job not created yet, keep waiting
-        if (elapsedSeconds === 5 || elapsedSeconds === 15 || elapsedSeconds % 30 === 0) {
-          // #region agent log
-          fetch('http://127.0.0.1:7625/ingest/1098fe65-bd20-429c-885f-7ead38295b08',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353e91'},body:JSON.stringify({sessionId:'353e91',runId:'pre-fix',hypothesisId:'H2,H3',location:'aiService.ts:poll-no-job',message:'No transcript job found yet',data:{elapsedSeconds,triggerStatus,triggerOk,triggerJobId,importStartedAt},timestamp:Date.now()})}).catch(()=>{});
-          // #endregion
-        }
-        await new Promise(resolve => setTimeout(resolve, pollInterval))
-        continue
-      }
-
-      if (elapsedSeconds === 5 || elapsedSeconds === 15 || elapsedSeconds % 30 === 0 || job.status === 'completed' || job.status === 'failed') {
-        const jobCreatedAt = job.created_at ? new Date(job.created_at).getTime() : null
-        // #region agent log
-        fetch('http://127.0.0.1:7625/ingest/1098fe65-bd20-429c-885f-7ead38295b08',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353e91'},body:JSON.stringify({sessionId:'353e91',runId:'pre-fix',hypothesisId:'H4,H5',location:'aiService.ts:poll-job-state',message:'Transcript job poll state',data:{elapsedSeconds,jobId:job.id,jobStatus:job.status,jobCreatedAt,importStartedAt,isStaleJob:jobCreatedAt?jobCreatedAt<importStartedAt-5000:null,errorMessage:job.error_message??null,hasResultData:!!job.result_data},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
-      }
-      
-      if (job.status === 'completed') {
-        console.log('✓ Transcript conversion successful!')
-        console.log('Nodes extracted:', job.result_data?.nodes?.length || 0)
-        return job.result_data
-      }
-      
-      if (job.status === 'failed') {
-        throw new Error(job.error_message || 'Processing failed')
-      }
-      
-      // Still processing, wait and poll again
-      await new Promise(resolve => setTimeout(resolve, pollInterval))
+    if (!startResponse.ok) {
+      const detail = startPayload.error || startText.slice(0, 300) || 'empty response'
+      const hint = startPayload.hint ? ` (${startPayload.hint})` : ''
+      throw new Error(`Transcript start failed (${startResponse.status}): ${detail}${hint}${localDevHint()}`)
     }
-    
+
+    if (startPayload.error) {
+      throw new Error(startPayload.error + localDevHint())
+    }
+
+    onProgress?.('Waiting for background job...')
+    const jobId = await resolveTranscriptJobId(user.id, importStartedAt, startPayload.jobId ?? null)
+    console.log(`Tracking transcript job ${jobId}`)
+
+    return await pollDatabaseForJobCompletion(
+      user.id,
+      'transcript',
+      jobId,
+      importStartedAt,
+      (message) => onProgress?.(message)
+    )
   } catch (error) {
     console.error('Error converting transcript to journey:', error)
     throw error
