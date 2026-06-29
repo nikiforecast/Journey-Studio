@@ -1,10 +1,11 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Handle, Position } from '@xyflow/react'
-import { Edit } from 'lucide-react'
+import { Edit, ImageIcon } from 'lucide-react'
 import { UserRoleTag } from '../../common/UserRoleTag'
 import type { UserRole, ThirdParty, Platform } from '../../../lib/supabase'
 import { convertEmojis } from '../../../utils/emojiConverter'
 import { renderMarkdown } from '../../../utils/markdownRenderer'
+import { ImageLightbox } from '../../ImageLightbox'
 
 export type UserJourneyNodeType = 'start' | 'process' | 'decision' | 'end' | 'label'
 
@@ -28,6 +29,7 @@ export interface UserJourneyNodeData {
   variant?: 'CMS' | 'Legl' | 'End client' | 'Back end' | 'Third party' | 'Custom' | ''
   thirdPartyName?: string
   customPlatformName?: string
+  imageUrl?: string
   nodeLayout?: string // Layout classification: 'Simple node', 'Branch node', 'Branch-child node', 'Convergent node', 'Divergent node'
   journeyLayout?: 'vertical' | 'horizontal' // Overall journey layout direction
 }
@@ -48,6 +50,7 @@ interface UserJourneyNodeProps {
 }
 
 export function UserJourneyNode({ id, data, selected, showHandles = false, thirdParties = [], platforms = [], onEdit, isConnecting = false, connectedEdges = [], userRoleEmojiOverrides = {}, handleArrowStates = [], onHandleArrowToggle }: UserJourneyNodeProps) {
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false)
   const nodeData = data as UserJourneyNodeData
   const {
     label = '',
@@ -61,7 +64,8 @@ export function UserJourneyNode({ id, data, selected, showHandles = false, third
     variant = '',
     thirdPartyName = '',
     customPlatformName = '',
-    journeyLayout = 'vertical'
+    journeyLayout = 'vertical',
+    imageUrl = ''
   } = nodeData || {}
   
   // Get notification styling based on type
@@ -351,14 +355,27 @@ export function UserJourneyNode({ id, data, selected, showHandles = false, third
         )
       })}
 
-      {/* Title Row: Title + Edit button */}
+      {/* Title Row: Title + Image + Edit button */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0 text-base font-semibold text-gray-900 break-words">
           {convertEmojis(label)}
         </div>
         
-        {/* Edit button - Hidden by default, visible on hover */}
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          {imageUrl && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setIsLightboxOpen(true)
+              }}
+              className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors duration-150"
+              title="View image"
+            >
+              <ImageIcon size={14} />
+            </button>
+          )}
+
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -519,6 +536,12 @@ export function UserJourneyNode({ id, data, selected, showHandles = false, third
           ))}
         </div>
       )}
+      <ImageLightbox
+        imageUrl={imageUrl}
+        isOpen={isLightboxOpen}
+        onClose={() => setIsLightboxOpen(false)}
+        alt={label ? `${label} image` : 'Node image'}
+      />
     </div>
   )
 }
