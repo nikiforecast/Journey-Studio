@@ -86,7 +86,9 @@ export const getUserJourneys = async (
 
       journeys = journeys.filter(journey =>
         (journey.folder_id && folderIdsInWorkspace.has(journey.folder_id)) ||
-        (journey.project_id && projectIdsInWorkspace.has(journey.project_id))
+        (journey.project_id && projectIdsInWorkspace.has(journey.project_id)) ||
+        // Root-level journeys (no folder/project) — RLS scopes these to the creator
+        (!journey.folder_id && !journey.project_id)
       )
     }
 
