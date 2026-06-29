@@ -116,15 +116,21 @@ export function UserJourneyNode({ id, data, selected, showHandles = false, third
 
   // Platform-specific border color - use color from database platform
   const getBorderColor = () => {
-    // If variant is Custom, use the default color
-    if (variant === 'Custom' || !variant) {
+    if (!variant) {
       return '#5A6698'
     }
-    
-    // Look up platform in database by variant name
+
+    if (variant === 'Custom') {
+      if (customPlatformName) {
+        const platform = platforms.find(p =>
+          p.name.toLowerCase() === customPlatformName.toLowerCase()
+        )
+        return platform?.colour || '#5A6698'
+      }
+      return '#5A6698'
+    }
+
     const platform = platforms.find(p => p.name === variant)
-    
-    // Use platform color if found, otherwise fallback to default
     return platform?.colour || '#5A6698'
   }
 

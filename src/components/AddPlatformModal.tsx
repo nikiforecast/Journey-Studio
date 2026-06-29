@@ -20,6 +20,18 @@ interface CropArea {
   height: number
 }
 
+const colorOptions = [
+  '#3B82F6', // Blue
+  '#00AA72', // Emerald
+  '#E18E00', // Amber
+  '#EF4444', // Red
+  '#8B5CF6', // Violet
+  '#04ABC8', // Cyan
+  '#67A812', // Lime
+  '#D75800', // Orange
+  '#E22D87', // Pink
+]
+
 export function AddPlatformModal({
   isOpen,
   onClose,
@@ -28,7 +40,7 @@ export function AddPlatformModal({
   editingPlatform = null
 }: AddPlatformModalProps) {
   const isEditing = !!editingPlatform
-  const [formData, setFormData] = useState({ name: initialName, logo: '' })
+  const [formData, setFormData] = useState({ name: initialName, logo: '', colour: '#3B82F6' })
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showCrop, setShowCrop] = useState(false)
@@ -51,10 +63,14 @@ export function AddPlatformModal({
     if (isOpen) {
       if (editingPlatform) {
         // Edit mode: populate with existing data
-        setFormData({ name: editingPlatform.name, logo: editingPlatform.logo || '' })
+        setFormData({
+          name: editingPlatform.name,
+          logo: editingPlatform.logo || '',
+          colour: editingPlatform.colour || '#3B82F6',
+        })
       } else {
         // Create mode: use initialName or empty
-        setFormData({ name: initialName, logo: '' })
+        setFormData({ name: initialName, logo: '', colour: '#3B82F6' })
       }
       setShowCrop(false)
       setImageSrc('')
@@ -488,12 +504,13 @@ export function AddPlatformModal({
         // Update existing platform
         result = await updatePlatform(editingPlatform.id, {
           name: formData.name.trim(),
-          logo: formData.logo || undefined
+          logo: formData.logo || undefined,
+          colour: formData.colour,
         })
         
         if (result) {
           onSuccess(result)
-          setFormData({ name: '', logo: '' })
+          setFormData({ name: '', logo: '', colour: '#3B82F6' })
           onClose()
         } else {
           alert('Failed to update platform')
@@ -502,13 +519,13 @@ export function AddPlatformModal({
         // Create new platform
         result = await createPlatform(
           formData.name.trim(),
-          '#5A6698', // Default colour for new platforms
+          formData.colour,
           formData.logo || undefined
         )
         
         if (result) {
           onSuccess(result)
-          setFormData({ name: '', logo: '' })
+          setFormData({ name: '', logo: '', colour: '#3B82F6' })
           onClose()
         } else {
           alert('Failed to create platform')
@@ -523,7 +540,7 @@ export function AddPlatformModal({
   }
 
   const handleCancel = () => {
-    setFormData({ name: '', logo: '' })
+    setFormData({ name: '', logo: '', colour: '#3B82F6' })
     onClose()
   }
 
@@ -593,6 +610,47 @@ export function AddPlatformModal({
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="e.g., Stripe, Auth0, Mailchimp"
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Colour
+          </label>
+          <div className="flex items-center gap-2 mb-2">
+            {colorOptions.map((color) => (
+              <button
+                key={color}
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, colour: color }))}
+                className={`w-8 h-8 rounded-full border-2 transition-all ${
+                  formData.colour === color ? 'border-gray-400 scale-110' : 'border-gray-200'
+                }`}
+                style={{ backgroundColor: color }}
+                disabled={saving}
+              />
+            ))}
+          </div>
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <div
+              className="w-4 h-4 rounded-full border border-gray-300"
+              style={{ backgroundColor: formData.colour }}
+            />
+            Selected: {formData.colour}
+          </div>
+          <div className="mt-3">
+            <label className="block text-sm font-medium text-gray-600 mb-2">
+              Or enter custom hex color
+            </label>
+            <input
+              type="text"
+              value={formData.colour}
+              onChange={(e) => setFormData(prev => ({ ...prev, colour: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="#RRGGBB"
+              pattern="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
+              disabled={saving}
+            />
+          </div>
         </div>
 
         <div>
