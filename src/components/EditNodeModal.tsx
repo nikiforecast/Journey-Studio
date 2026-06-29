@@ -5,7 +5,8 @@ import { Modal } from './DesignSystem/components/Modal'
 import { Button } from './DesignSystem/components/Button'
 import type { Notification } from './DesignSystem/components/UserJourneyNode'
 import type { UserRole, Platform } from '../lib/supabase'
-import { Plus, Trash2, GripVertical, ChevronDown, Check } from 'lucide-react'
+import { Plus, Trash2, GripVertical, ChevronDown, Check, ImageIcon } from 'lucide-react'
+import { processImageForStorage } from '../utils/imageUtils'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -49,6 +50,7 @@ export interface NodeFormData {
   notifications: Notification[]
   customProperties: Record<string, unknown>
   swimLane: string | null
+  imageUrl: string
 }
 
 // Sortable Bullet Point Component
@@ -245,6 +247,8 @@ export function EditNodeModal({
   onPlatformCreated,
 }: EditNodeModalProps) {
   const bulletInputRefs = useRef<(HTMLInputElement | null)[]>([])
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const [isProcessingImage, setIsProcessingImage] = useState(false)
   
   // Track if custom user role is selected
   const [isCustomUserRoleSelected, setIsCustomUserRoleSelected] = useState(false)
@@ -303,7 +307,8 @@ export function EditNodeModal({
     bulletPoints: [''],
     notifications: [],
     customProperties: {},
-    swimLane: null
+    swimLane: null,
+    imageUrl: ''
   })
   
   // Load platforms on mount
@@ -652,7 +657,8 @@ export function EditNodeModal({
         bulletPoints: existingBulletPoints.length > 0 ? existingBulletPoints : [''],
         notifications: notificationsWithDefault,
         customProperties: (node.data?.customProperties as Record<string, unknown>) || {},
-        swimLane: (node as any).parentId || null
+        swimLane: (node as any).parentId || null,
+        imageUrl: (node.data?.imageUrl as string) || ''
       })
       // Set platform search query based on variant
       if (resolvedVariant === 'Custom') {
@@ -694,7 +700,8 @@ export function EditNodeModal({
         bulletPoints: [''],
         notifications: [{ id: `notif-${Date.now()}`, type: 'info' as const, message: '' }],
         customProperties: {},
-        swimLane: null
+        swimLane: null,
+        imageUrl: ''
       })
       
       setPlatformSearchQuery('')
@@ -726,6 +733,28 @@ export function EditNodeModal({
   }, [formData.userRole?.id])
 
   // Define handleSave early so it can be used in useEffect
+  const handleImageSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) return
+
+    setIsProcessingImage(true)
+    try {
+      const dataUrl = await processImageForStorage(file)
+      setFormData(prev => ({ ...prev, imageUrl: dataUrl }))
+    } catch (error) {
+      console.error('Error processing image:', error)
+      window.alert(error instanceof Error ? error.message : 'Failed to process image')
+    } finally {
+      setIsProcessingImage(false)
+    }
+  }
+
+  const handleRemoveImage = () => {
+    setFormData(prev => ({ ...prev, imageUrl: '' }))
+  }
+
   const handleSave = useCallback(() => {
     // Convert bulletPointsWithIds back to string array
     const bulletPointsAsStrings = bulletPointsWithIds.map(bp => bp.text)
@@ -1120,6 +1149,63 @@ export function EditNodeModal({
             </SortableContext>
           </DndContext>
          
+        </div>
+
+        {/* Node Image */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Image
+          </label>
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageSelect}
+            className="hidden"
+          />
+          {formData.imageUrl ? (
+            <div className="flex items-start gap-3 rounded-md border border-gray-200 p-3">
+              <img
+                src={formData.imageUrl}
+                alt="Node attachment preview"
+                className="h-16 w-16 rounded object-cover border border-gray-200"
+              />
+              <div className="flex flex-1 flex-col gap-2">
+                <p className="text-sm text-gray-600">
+                  An image icon will appear on the node. Click it to view the full image.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => imageInputRef.current?.click()}
+                    disabled={isProcessingImage}
+                  >
+                    Replace
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={handleRemoveImage}
+                    className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                  >
+                    <Trash2 size={16} className="mr-2" />
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={isProcessingImage}
+              className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-gray-300 px-4 py-6 text-sm text-gray-600 transition-colors hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ImageIcon size={18} />
+              {isProcessingImage ? 'Processing image...' : 'Add image'}
+            </button>
+          )}
         </div>
 
         {/* User Role and Platform - Side by side */}
