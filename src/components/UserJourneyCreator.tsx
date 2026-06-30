@@ -84,6 +84,49 @@ function getNodeRect(node: Node): { x: number; y: number; width: number; height:
   }
 }
 
+const DEFAULT_NODE_WIDTH = 320
+const DEFAULT_NODE_HEIGHT = 120
+
+type ReactFlowPositionHelper = {
+  screenToFlowPosition: (position: { x: number; y: number }) => { x: number; y: number }
+}
+
+function getViewportCenterInFlowCoords(
+  reactFlowInstance: ReactFlowPositionHelper | null
+): { x: number; y: number } {
+  if (!reactFlowInstance) {
+    return { x: 200, y: 200 }
+  }
+
+  const pane = document.querySelector('.react-flow')
+  if (pane) {
+    const rect = pane.getBoundingClientRect()
+    return reactFlowInstance.screenToFlowPosition({
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    })
+  }
+
+  return reactFlowInstance.screenToFlowPosition({
+    x: window.innerWidth / 2,
+    y: window.innerHeight / 2,
+  })
+}
+
+function getCenteredNodePosition(
+  reactFlowInstance: ReactFlowPositionHelper | null,
+  snapToGrid: (value: number) => number,
+  nodeWidth = DEFAULT_NODE_WIDTH,
+  nodeHeight = DEFAULT_NODE_HEIGHT
+): { x: number; y: number } {
+  const viewportCenter = getViewportCenterInFlowCoords(reactFlowInstance)
+
+  return {
+    x: snapToGrid(viewportCenter.x - nodeWidth / 2),
+    y: snapToGrid(viewportCenter.y - nodeHeight / 2),
+  }
+}
+
 // Check if two rects overlap (with optional tolerance)
 function rectsOverlap(
   a: { x: number; y: number; width: number; height: number },
@@ -2740,18 +2783,14 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
   // Save node configuration
   const saveNodeConfiguration = useCallback(async (formData: NodeFormData) => {
     if (isAddingNewNode) {
-      // Create a new node with position snapped to grid
-      const randomX = Math.random() * 400
-      const randomY = Math.random() * 400
-      
+      const position = getCenteredNodePosition(reactFlowInstanceRef.current, snapToGrid)
+
       const newNode: Node = {
         id: `${Date.now()}`,
         type: formData.type,
-        position: { 
-          x: snapToGrid(randomX), 
-          y: snapToGrid(randomY) 
-        },
+        position,
         selectable: true,
+        selected: true,
         ...(formData.swimLane ? { parentId: formData.swimLane } : {}),
         data: {
           ...formData,
@@ -2759,7 +2798,7 @@ export function UserJourneyCreator({ userRoles = [], journeyId, thirdParties: in
         },
       }
       
-      setNodes((nds) => [...nds, newNode])
+      setNodes((nds) => [...nds.map((node) => ({ ...node, selected: false })), newNode])
       
       // Save to database if journey already exists
       if (currentJourneyId) {
